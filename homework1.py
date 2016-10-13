@@ -1,4 +1,6 @@
-# 20130479 Jaryong Lee
+#################################################
+##### CS492 Homework#1 20130479 Jaryong Lee #####
+#################################################
 
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -48,8 +50,6 @@ def print_with_bar ( print_temp ):
     print print_temp
     print "-" * len(print_temp)
 
-
-
 def cost_function_linear( y, x, beta ):
     # print "Calculate cost ..."
 
@@ -94,8 +94,7 @@ def backtracking_line_search ( y, x, beta, step_size, back, ratio):
     while True:
         cost_actual = cost_function_logistic (y, x, beta - step_size * gradient)
         cost_expected = cost_function_logistic (y, x, beta) + back * step_size * np.sum(gradient.transpose().dot(gradient))
-        if cost_actual < cost_expected:
-            break
+        if cost_actual < cost_expected: break
         step_size *= ratio
 
     return beta - step_size * gradient
@@ -103,13 +102,17 @@ def backtracking_line_search ( y, x, beta, step_size, back, ratio):
 if __name__ == "__main__":
     print_with_bar ("Homework #1. 20130479. Jaryong Lee.")
 
+    ############################
+    ##### HYPER PARAMETERS #####
+    ############################
+
     num_set = 10
     iteration = 100
-    linear_gradient_step_size = 0.15
-    logistic_gradient_step_size = 1
-    logistic_backtracking_step_size = 10
-    backtracking_hyperparameter = 0.01
-    backtracking_ratio = 0.5
+    linear_gradient_step_size = 1
+    logistic_gradient_step_size = 0.01
+    logistic_backtracking_step_size = 5
+    backtracking_alpha = 0.05
+    backtracking_ratio = 0.9
 
     data_set = load_data ("housing_scale")
     splited_data_set = split_set (num_set, 0.8, data_set)
@@ -118,8 +121,10 @@ if __name__ == "__main__":
     # splited_data_set = split_set (2, 0.8, list(np.random.random((10, 5))))
     # print splited_data_set
     
-
+    #########################################
     # Linear Regression --- Analytic Solution
+    #########################################
+
     print_with_bar ("Linear Regression --- Analytic Solution")
     print "Calculate mean prediction error from beta by anlaytic solution ..."
 
@@ -141,12 +146,17 @@ if __name__ == "__main__":
         errors_linear_analytic.append(error)
         cost_analytic.append(cost_function_linear (test_set_y, test_set_x, beta_linear_analytic))
 
+    # TEST cost_analytic
+    # print "cost_analytic : %s" % cost_analytic
+
     cost_analytic = iteration * [np.mean(cost_analytic)]
         
     print_with_bar ( "Prediction error: %s by %s splited set --- Analytic Solution" % (np.mean(errors_linear_analytic), num_set) )
 
-
+    ########################################
     # Linear Regression --- Gradient Descent
+    ########################################
+
     print_with_bar ("Linear Regression --- Gradient Descent")
     print "Calculate mean prediction error from beta by gradient descent ..."
 
@@ -176,6 +186,10 @@ if __name__ == "__main__":
         # print "error : %s" % error
 
         errors_linear_gradient.append(error)
+
+    # TEST cost_gradient
+    # print "cost_gradient : %s" % cost_gradient
+
     print_with_bar ("Prediction error: %s by %s iteration %s splited set --- Gradient Descent" % (np.mean(errors_linear_gradient), iteration, num_set) )
 
     plt_iter = range(iteration)
@@ -187,8 +201,10 @@ if __name__ == "__main__":
     data_set = load_data ("a3a")
     splited_data_set = split_set (num_set, 0.8, data_set)
 
-
+    ##########################################
     # Logistic Regression --- Gradient Descent
+    ##########################################
+
     print_with_bar ("Logistic Regression --- Gradient Descent")
     print "Calculate mean prediction error from beta by gradient descent ..."
 
@@ -229,8 +245,10 @@ if __name__ == "__main__":
     plt.show()
 
 
-
+    ##################################################
     # Logistic Regression --- Backtracking Line Search
+    ##################################################
+
     print_with_bar ("Logistic Regression --- Backtracking Line Search")
     print "Calculate mean prediction error from beta by gradient descent ..."
 
@@ -249,7 +267,7 @@ if __name__ == "__main__":
         for _ in range(iteration):
             beta_logistic_backtracking = backtracking_line_search (train_set_y, train_set_x,
                     beta_logistic_backtracking, logistic_backtracking_step_size,
-                    backtracking_hyperparameter, backtracking_ratio)
+                    backtracking_alpha, backtracking_ratio)
             if first: cost_gradient.append (cost_function_logistic (test_set_y, test_set_x,
                 beta_logistic_backtracking))
 
