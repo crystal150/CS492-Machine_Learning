@@ -4,10 +4,10 @@
 
 import cvxopt 
 import random
-from numpy import sqrt, pi, average, var
+from numpy import sqrt, pi, average, var, log2
 from numpy.random import multivariate_normal
 from numpy.linalg import inv, det
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 def load_data ( file_name ):
     print "Load data from %s ..." % file_name 
@@ -71,6 +71,8 @@ def SVM ( X, y, C ):
 def SVM_no_kernel_trick (train_set, test_set, max_col, cross_validation_pieces, C_list):
     best_C = 0
     lowest_val_error = 100
+    train_errors_by_C = []
+    validation_errors_by_C = []
     for C in C_list:
         train_errors = []
         validation_errors = []
@@ -102,7 +104,9 @@ def SVM_no_kernel_trick (train_set, test_set, max_col, cross_validation_pieces, 
 
         # Calculate average train, validation errors
         train_error = sum(train_errors) / len(train_errors)
+        train_errors_by_C.append(train_error)
         validation_error = sum(validation_errors) / len(validation_errors)
+        validation_errors_by_C.append(validation_error)
         print "C: %s, train_error: %s, validation_error: %s" % (C, train_error, validation_error)
         # To find best C, update lowest validation error & C
         if validation_error <= lowest_val_error:
@@ -136,12 +140,10 @@ def SVM_no_kernel_trick (train_set, test_set, max_col, cross_validation_pieces, 
 
     # Draw training prediction error avg for each C
     # Draw validation prediction error avg for each C
-
-    """
-    plt.plot(plt_iter, cost_analytic, plt_iter, cost_gradient)
-    plt.ylabel('Cost')
+    plt.plot(list(log2(C_list)), train_errors_by_C, list(log2(C_list)), validation_errors_by_C)
+    plt.xlabel('log2(C)')
+    plt.ylabel('Error Rate')
     plt.show()
-    """
 
 def Gaussian_kernel ( X, Y, sigma ):
     sample_num_X = X.size[0]
@@ -179,9 +181,13 @@ def SVM_gaussian_kernel ( X, y, C, gaussian ):
     return alpha, b
 
 def SVM_kernel_trick (train_set, test_set, max_col, cross_validation_pieces, C_list, sigma_list):
+    """
     best_C = 0
     best_sigma = 0
     lowest_val_error = 100
+    train_data = []
+    validation_data = []
+    log2C_sigma = []
     for C, sigma in [(C, sigma) for C in C_list for sigma in sigma_list]:
         train_errors = []
         validation_errors = []
@@ -217,13 +223,17 @@ def SVM_kernel_trick (train_set, test_set, max_col, cross_validation_pieces, C_l
         # Calculate average train, validation errors
         train_error = sum(train_errors) / len(train_errors)
         validation_error = sum(validation_errors) / len(validation_errors)
+        train_data.append(train_error)
+        validation_data.append(validation_error)
         print "C: %s, sigma: %s, train_error: %s, validation_error: %s" % (C, sigma, train_error, validation_error)
         # To find best C, update lowest validation error & C
         if validation_error <= lowest_val_error:
             lowest_val_error = validation_error
             best_C = C
             best_sigma = sigma
-
+    """
+    best_C = 10**3.25
+    best_sigma = 100
     print "Best C: %s, Best sigma: %s" % (best_C, best_sigma)
     # Load train data from total train set
     train_X = load_spmat_data (train_set, max_col)
@@ -252,19 +262,20 @@ def SVM_kernel_trick (train_set, test_set, max_col, cross_validation_pieces, C_l
 
     # Draw training prediction error avg for each C
     # Draw validation prediction error avg for each C
+    f = cvxopt.matrix(train_data, (len(sigma_list), len(C_list)))
+    g = cvxopt.matrix(validation_data, (len(sigma_list), len(C_list)))
 
-    """
-    plt.plot(plt_iter, cost_analytic, plt_iter, cost_gradient)
-    plt.ylabel('Cost')
+    plt.imshow(f, interpolation="nearest", origin="upper")
+    plt.colorbar()
     plt.show()
-    """
+
+    plt.imshow(g, interpolation="nearest", origin="upper")
+    plt.colorbar()
+    plt.show()
 
 def Gaussian_Probability ( X, mu, SIGMA ):
 
     inv_sigma = cvxopt.matrix(inv(SIGMA))
-    #print mu
-    #print X
-    #print cvxopt.matrix([(X[i, :] - mu) * inv_sigma * (X[i,:] - mu).T for i in range(X.size[0])])
     return cvxopt.exp(cvxopt.matrix([(-(X[i, :] - mu)*inv_sigma*(X[i, :] - mu).T/2)[0] for i in
         range(X.size[0])]))/sqrt(det(2*pi*SIGMA))
 
@@ -350,9 +361,9 @@ if __name__ == "__main__":
     """
     
     piece_num = 5
-    C_list = [2.0**i for i in range(8, 10)]
-    sigma_list = [9+i/2.5 for i in range(1, 21)]
-    n_generate = 30
+    C_list = [2.0**i for i in range(-2, 5)]
+    sigma_list = [1+i/2.5 for i in range(1, 21)]
+    n_generate = 1000
     mean = [[1, 3],
             [4, 9]]
     cov = [ [[0.01, 0], [0, 0.3]], 
