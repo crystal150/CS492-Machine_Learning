@@ -259,36 +259,35 @@ def SVM_kernel_trick (train_set, test_set, max_col, cross_validation_pieces, C_l
     plt.show()
     """
 
-def Gaussian_Probability ( X, mu, variance ):
-    sample_num_X = X.size[0]
-    sample_num_mu = mu.size[0]
-    one_vector_X = cvxopt.matrix([1.0]*sample_num_X)
-    one_vector_mu = cvxopt.matrix([1.0]*sample_num_mu)
-    sqX = X*X.T
-    sqmu = mu*mu.T
-    Xmu = X*mu.T
-    diag_X = sqX[::sample_num_X+1]
-    diag_mu = sqmu[::sample_num_mu+1]
+def Gaussian_Probability ( X, mu, SIGMA ):
 
-    edm = one_vector_X*diag_mu.T - 2*Xmu + diag_X*one_vector_mu.T
-    return cvxopt.exp(cvxopt.matrix([[-edm[:, i]/(2*variance[i])] for i in range(edm.size[1])]))
+    inv_sigma = cvxopt.matrix(inv(SIGMA))
+    #print mu
+    #print X
+    #print cvxopt.matrix([(X[i, :] - mu) * inv_sigma * (X[i,:] - mu).T for i in range(X.size[0])])
+    return cvxopt.exp(cvxopt.matrix([(-(X[i, :] - mu)*inv_sigma*(X[i, :] - mu).T/2)[0] for i in
+        range(X.size[0])]))/sqrt(det(2*pi*SIGMA))
 
-def Gaussian_Mixture_Models():
-    K = 2
-    n = 1000
-    mean = [30, 30]
-    cov = [[100, 0], [0, 30]]  # diagonal covariance
-    cov = cvxopt.spdiag([100, 30])
-    print cov
-    X = cvxopt.matrix(multivariate_normal(mean, cov, n/2), (n, 1))
+def Gaussian_Mixture_Models (n, mean, cov):
+
+    K = len(mean)
+    X0 = cvxopt.matrix(multivariate_normal(mean[0], cov[0], n/K))
+    X1 = cvxopt.matrix(multivariate_normal(mean[1], cov[1], n/K))
+    X = cvxopt.matrix([X0, X1])
     
-    mu = cvxopt.matrix([average(X)/2, average(X)*3/2])
-    variance = cvxopt.matrix([1, 1])
-    PI = cvxopt.matrix([1.0/K]*K)
+    mu = cvxopt.matrix([[average(X[:, 0])/2, average(X[:, 0])*3/2],
+            [average(X[:, 1])/2, average(X[:, 1])*3/2]])
+    variance0 = cvxopt.matrix( [[1, 0], [0, 1]] )
+    variance1 = cvxopt.matrix( [[1, 0], [0, 1]] )
+    variance = [variance0, variance1]
+    PI = cvxopt.matrix([0.2, 0.8])
+    #PI = cvxopt.matrix([1.0/K]*K)
     try:
         while (True):
             # E algorithm
-            normal = Gaussian_Probability(X, mu, variance)
+            normal0 = Gaussian_Probability(X, mu[0, :], variance[0])
+            normal1 = Gaussian_Probability(X, mu[1, :], variance[1])
+            normal = cvxopt.matrix([[normal0], [normal1]])
             normal_sum_k = normal*PI
             normal_j = normal*cvxopt.spdiag(PI)
             
@@ -296,33 +295,34 @@ def Gaussian_Mixture_Models():
 
             # M algorithm
             N = cvxopt.matrix([sum(P[:, i]) for i in range(P.size[1])])
-            x_subs_mu = cvxopt.matrix([[X-mu[i]] for i in range(K)])
+            x0_subs_mu = cvxopt.matrix( [X[i, :]-mu[0, :] for i in range(n)] )
+            x1_subs_mu = cvxopt.matrix( [X[i, :]-mu[1, :] for i in range(n)] )
 
-            mu_new = cvxopt.matrix([sum(X.T*P[:, i])/N[i] for i in range(K)])
-            variance_new = cvxopt.matrix([(x_subs_mu[:, i].T*cvxopt.spdiag(P[:, i])*x_subs_mu[:,
-                i])[0] / N[i] for i in range(K)])
-            PI = N/n
+            mu_new = cvxopt.matrix([X.T*P[:, i]/N[i] for i in range(K)], (K, 2)).T
+            variance0_new = (x0_subs_mu.T*cvxopt.spdiag(P[:, 0])*x0_subs_mu) / N[0]
+            variance1_new = (x1_subs_mu.T*cvxopt.spdiag(P[:, 1])*x1_subs_mu) / N[1]
+            variance_new = [variance0_new, variance1_new]
+
+            PI_new = N/n
+
+            # If any pi is small enough, this may be single model
             if 1-(PI.T*PI)[0] <= 10**(-5):
-                print "hello"
                 raise ZeroDivisionError()
-            if sum(abs(mu-mu_new)) <= 10**(-5) and sum(abs(variance-variance_new)) <= 10**(-10): break
+            
+            # If changing a little, stop guessing
+            if sum(abs(mu - mu_new)) <= 10**(-13): break
+
             mu = mu_new
             variance = variance_new
+            PI = PI_new
 
         print_with_bar("GMM with 2 single Gaussian models")
-        print "mu:\n%svariance:\n%spi:\n%s" %(mu, variance, PI)
+        print "mu:\n%svariance:\n%s%spi:\n%s" %(mu_new, variance_new[0], variance_new[1], PI)
 
     except ZeroDivisionError:
         print_with_bar("It is close to the single Gaussian model")
         dominant = max([(value, i) for i, value in enumerate(PI)])[1]
-        print "mu:\n[%s]\nvariance:\n[%s]" %(mu[dominant], variance[dominant])
-
-
-
-
-
-
-
+        print "mu:\n[%s]\nvariance:\n[%s]" %(mu[dominant, :], variance[dominant])# variance[dominant])
 
 if __name__ == "__main__":
     print_with_bar ("Homework #2. 20130479. Jaryong Lee.")
@@ -330,10 +330,33 @@ if __name__ == "__main__":
     ############################
     ##### HYPER PARAMETERS #####
     ############################
+    
+    """ Hyper Parameters for SVM, GMM
 
+    piece_num
+    ---------
+        Using cross validation technique, ivide whole training set with
+        'piece_num' pairs of (train, validation)
+
+    C_list, sigma_list
+    ------------------
+        Hyper parameter for C and sigma for Support Vector Machines
+
+    n_generate, mean, cov
+    ---------------------
+        Composing Gaussian Mixture Models, make 'n_generate' samples that follows GMM
+        'mean', 'cov' = means and covariances of Gaussian Mixture Model
+
+    """
+    
     piece_num = 5
     C_list = [2.0**i for i in range(8, 10)]
     sigma_list = [9+i/2.5 for i in range(1, 21)]
+    n_generate = 30
+    mean = [[1, 3],
+            [4, 9]]
+    cov = [ [[0.01, 0], [0, 0.3]], 
+            [[0.02, 0], [0, 0.03]] ]  # diagonal covariance
 
     #####################
     ##### DATA LOAD #####
@@ -369,7 +392,7 @@ if __name__ == "__main__":
             ###########################
             # GAUSSIAN MIXTURE MODELS #
             ###########################
-            Gaussian_Mixture_Models()
+            Gaussian_Mixture_Models(n_generate, mean, cov)
 
         elif sel == 'q':
             # Quit
